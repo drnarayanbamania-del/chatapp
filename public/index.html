@@ -26,7 +26,6 @@
                     <h1
                         class="text-3xl font-bold font-['Outfit'] bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent">
                         ChatApp</h1>
-                    <p class="text-slate-400 mt-2" id="auth-subtitle">Welcome back! Please login to continue.</p>
                     <div
                         class="mt-4 flex items-center justify-center gap-2 text-[10px] uppercase tracking-widest text-blue-400/60 font-medium">
                         <i class="fa-solid fa-shield-halved"></i>
@@ -104,30 +103,31 @@
 
         <!-- Chat View -->
         <div id="chat-view" class="flex-1 flex overflow-hidden">
-            <!-- Sidebar -->
-            <aside id="sidebar" class="w-80 border-r border-slate-800 flex flex-col bg-[#1e293b]/50 backdrop-blur-md">
-                <div class="p-6">
-                    <div class="flex items-center gap-3 mb-8">
-                        <img src="logo.png" alt="Logo" class="w-10 h-10 rounded-xl">
-                        <h2 class="text-2xl font-bold font-['Outfit'] text-white">ChatApp</h2>
-                        <button id="mobile-close-sidebar" class="lg:hidden ml-auto text-slate-400 hover:text-white">
-                            <i class="fa-solid fa-xmark text-xl"></i>
-                        </button>
-                    </div>
+            <!-- Sidebar / Contacts List -->
+            <aside id="sidebar"
+                class="w-full lg:w-80 h-full border-r border-slate-800/50 bg-[#1e293b]/50 backdrop-blur-xl flex flex-col z-30 transition-transform duration-300 lg:translate-x-0 -translate-x-full absolute lg:relative">
+                <!-- User Profile Banner -->
+                <div class="p-6 border-b border-slate-800/30">
                     <div class="flex items-center justify-between mb-6">
-                        <h2 class="text-xl font-semibold text-slate-300">Chats</h2>
-                        <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-3 cursor-pointer group" onclick="toggleProfile()">
+                            <div id="current-user-avatar"
+                                class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold ring-2 ring-blue-500/20 group-hover:scale-105 transition-transform">
+                                ?
+                            </div>
+                            <div class="overflow-hidden">
+                                <h3 id="current-user-name" class="font-bold text-white text-sm truncate">...</h3>
+                                <p id="current-user-username"
+                                    class="text-[10px] text-slate-500 tracking-wider uppercase">...</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
                             <button onclick="toggleTheme()"
-                                class="w-10 h-10 rounded-xl bg-slate-800/50 flex items-center justify-center text-slate-400 hover:text-yellow-400 transition-all border border-slate-700/50">
-                                <i class="fa-solid fa-moon" id="theme-icon"></i>
+                                class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-800/50 transition-colors">
+                                <i id="theme-icon" class="fa-solid fa-moon"></i>
                             </button>
-                            <button onclick="toggleProfile()"
-                                class="w-10 h-10 rounded-xl bg-slate-800/50 flex items-center justify-center text-slate-400 hover:text-blue-400 transition-all border border-slate-700/50">
-                                <i class="fa-solid fa-user"></i>
-                            </button>
-                            <button onclick="logout()"
-                                class="w-10 h-10 rounded-xl bg-slate-800/50 flex items-center justify-center text-slate-400 hover:text-red-400 transition-all border border-slate-700/50">
-                                <i class="fa-solid fa-right-from-bracket"></i>
+                            <button onclick="toggleSidebar()"
+                                class="lg:hidden w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-800/50">
+                                <i class="fa-solid fa-xmark"></i>
                             </button>
                         </div>
                     </div>
@@ -189,84 +189,88 @@
                     </div>
                 </div>
 
-                <!-- Chat Active View -->
-                <div id="active-chat" class="hidden flex-1 flex flex-col overflow-hidden">
+                <!-- Active Chat Window -->
+                <main id="active-chat" class="hidden flex-1 h-full flex flex-col bg-[#0f172a] relative">
+                    <!-- Chat Header -->
                     <header
-                        class="h-20 border-b border-slate-800/50 flex items-center justify-between px-4 lg:px-8 bg-[#1e293b]/30 backdrop-blur-sm">
-                        <div class="flex items-center gap-3 lg:gap-4">
-                            <button id="mobile-back-btn" class="lg:hidden text-slate-400 hover:text-white mr-2">
-                                <i class="fa-solid fa-arrow-left text-lg"></i>
+                        class="h-16 border-b border-slate-800/30 px-6 flex items-center justify-between z-20 glass sticky top-0">
+                        <div class="flex items-center gap-4">
+                            <button onclick="toggleSidebar()"
+                                class="lg:hidden w-10 h-10 rounded-xl flex items-center justify-center bg-slate-800 text-slate-300">
+                                <i class="fa-solid fa-bars"></i>
                             </button>
-                            <div class="w-10 h-10 rounded-xl bg-slate-700 flex items-center justify-center text-white font-bold"
-                                id="chat-header-avatar">
-                                ?
-                            </div>
-                            <div>
-                                <h3 class="font-bold text-white" id="chat-header-name">Username</h3>
-                                <p class="text-xs text-green-400 flex items-center gap-1.5 font-medium">
-                                    <span class="w-2 h-2 rounded-full bg-green-400"></span> Online
-                                </p>
-                            </div>
-                        </div>
-                        <div class="flex items-center gap-4 text-slate-400">
-                            <button class="hover:text-white transition-colors"><i
-                                    class="fa-solid fa-phone"></i></button>
-                            <button class="hover:text-white transition-colors"><i
-                                    class="fa-solid fa-video"></i></button>
-                            <button class="hover:text-white transition-colors"><i
-                                    class="fa-solid fa-ellipsis-vertical"></i></button>
-                        </div>
-                    </header>
-
-                    <!-- Messages Pane -->
-                    <div id="messages-container" class="flex-1 overflow-y-auto p-8 space-y-6 custom-scrollbar">
-                        <!-- Messages Injected Here -->
-                    </div>
-
-                    <!-- Input Area -->
-                    <footer class="p-6 bg-transparent">
-                        <div
-                            class="max-w-4xl mx-auto flex items-end gap-3 bg-[#1e293b] p-3 rounded-2xl border border-slate-700/50 shadow-xl">
-                            <button class="p-2 text-slate-400 hover:text-blue-400 transition-colors"><i
-                                    class="fa-regular fa-face-smile text-xl"></i></button>
-                            <div class="relative group">
-                                <button id="attach-btn"
-                                    class="p-2 text-slate-400 hover:text-blue-400 transition-colors">
-                                    <i class="fa-solid fa-paperclip text-xl"></i>
-                                </button>
-                                <!-- Attachment Menu -->
-                                <div id="attach-menu"
-                                    class="hidden absolute bottom-full left-0 mb-4 bg-[#1e293b] border border-slate-700/50 rounded-2xl shadow-2xl p-2 w-48 animate-slide-up">
-                                    <button onclick="handleAttachment('photo')"
-                                        class="w-full flex items-center gap-3 p-3 hover:bg-slate-800 rounded-xl transition-all text-slate-300 hover:text-white">
-                                        <div
-                                            class="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-500">
-                                            <i class="fa-solid fa-image"></i>
-                                        </div>
-                                        <span class="text-sm font-medium">Attach Photo</span>
-                                    </button>
-                                    <button onclick="handleAttachment('document')"
-                                        class="w-full flex items-center gap-3 p-3 hover:bg-slate-800 rounded-xl transition-all text-slate-300 hover:text-white">
-                                        <div
-                                            class="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-500">
-                                            <i class="fa-solid fa-file-lines"></i>
-                                        </div>
-                                        <span class="text-sm font-medium">Document</span>
-                                    </button>
+                            <div class="flex items-center gap-3">
+                                <div id="chat-header-avatar"
+                                    class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-500/20">
+                                    ?
+                                </div>
+                                <div>
+                                    <h3 id="chat-header-name" class="font-bold text-white text-sm">Select a contact</h3>
+                                    <div class="flex items-center gap-1.5">
+                                        <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                                        <span
+                                            class="text-[10px] text-slate-500 font-medium uppercase tracking-tighter">Active
+                                            now</span>
+                                    </div>
                                 </div>
                             </div>
-                            <input type="file" id="file-input" class="hidden" accept="image/*,.pdf,.doc,.docx,.txt">
-                            <textarea id="message-input" placeholder="Type a message..." rows="1"
-                                class="flex-1 bg-transparent border-none focus:ring-0 text-slate-200 py-2 resize-none custom-scrollbar min-h-[40px] max-h-32"></textarea>
-                            <button id="send-btn"
-                                class="bg-blue-600 hover:bg-blue-500 text-white w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-lg shadow-blue-500/20 active:scale-95">
-                                <i class="fa-solid fa-paper-plane"></i>
-                            </button>
                         </div>
-                    </footer>
-                </div>
-            </main>
+                        class="flex items-center gap-4 text-slate-400">
+                        <button class="hover:text-white transition-colors"><i class="fa-solid fa-phone"></i></button>
+                        <button class="hover:text-white transition-colors"><i class="fa-solid fa-video"></i></button>
+                        <button class="hover:text-white transition-colors"><i
+                                class="fa-solid fa-ellipsis-vertical"></i></button>
         </div>
+        </header>
+
+        <!-- Messages Pane -->
+        <div id="messages-container" class="flex-1 overflow-y-auto p-8 space-y-6 custom-scrollbar">
+            <!-- Messages Injected Here -->
+        </div>
+
+        <!-- Input Area -->
+        <footer class="p-6 bg-transparent">
+            <div
+                class="max-w-4xl mx-auto flex items-end gap-3 bg-[#1e293b] p-3 rounded-2xl border border-slate-700/50 shadow-xl">
+                <button class="p-2 text-slate-400 hover:text-blue-400 transition-colors"><i
+                        class="fa-regular fa-face-smile text-xl"></i></button>
+                <div class="relative group">
+                    <button id="attach-btn" class="p-2 text-slate-400 hover:text-blue-400 transition-colors">
+                        <i class="fa-solid fa-paperclip text-xl"></i>
+                    </button>
+                    <!-- Attachment Menu -->
+                    <div id="attach-menu"
+                        class="hidden absolute bottom-full left-0 mb-4 bg-[#1e293b] border border-slate-700/50 rounded-2xl shadow-2xl p-2 w-48 animate-slide-up">
+                        <button onclick="handleAttachment('photo')"
+                            class="w-full flex items-center gap-3 p-3 hover:bg-slate-800 rounded-xl transition-all text-slate-300 hover:text-white">
+                            <div
+                                class="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-500">
+                                <i class="fa-solid fa-image"></i>
+                            </div>
+                            <span class="text-sm font-medium">Attach Photo</span>
+                        </button>
+                        <button onclick="handleAttachment('document')"
+                            class="w-full flex items-center gap-3 p-3 hover:bg-slate-800 rounded-xl transition-all text-slate-300 hover:text-white">
+                            <div
+                                class="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-500">
+                                <i class="fa-solid fa-file-lines"></i>
+                            </div>
+                            <span class="text-sm font-medium">Document</span>
+                        </button>
+                    </div>
+                </div>
+                <input type="file" id="file-input" class="hidden" accept="image/*,.pdf,.doc,.docx,.txt">
+                <textarea id="message-input" placeholder="Type a message..." rows="1"
+                    class="flex-1 bg-transparent border-none focus:ring-0 text-slate-200 py-2 resize-none custom-scrollbar min-h-[40px] max-h-32"></textarea>
+                <button id="send-btn"
+                    class="bg-blue-600 hover:bg-blue-500 text-white w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-lg shadow-blue-500/20 active:scale-95">
+                    <i class="fa-solid fa-paper-plane"></i>
+                </button>
+            </div>
+        </footer>
+    </div>
+    </main>
+    </div>
     </div>
 
     <!-- Profile Sidebar -->

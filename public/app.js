@@ -242,6 +242,11 @@ function toggleProfile() {
     sidebar.classList.toggle('translate-x-full');
 }
 
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    sidebar.classList.toggle('-translate-x-full');
+}
+
 // Theme Management
 function toggleTheme() {
     const body = document.body;
@@ -395,6 +400,11 @@ function selectChat(user) {
 
     renderUserList(state.users);
     fetchMessages();
+
+    // On mobile, close sidebar after selecting a chat
+    if (window.innerWidth < 1024) {
+        toggleSidebar();
+    }
 
     if (state.pollInterval) clearInterval(state.pollInterval);
     state.pollInterval = setInterval(fetchMessages, 3000);
