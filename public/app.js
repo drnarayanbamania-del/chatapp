@@ -68,8 +68,8 @@ async function sendOTP(isResend = false) {
     const phoneInput = document.getElementById('auth-phone');
     const phone = isResend ? state.tempPhone : phoneInput.value.trim();
 
-    if (!phone || phone.length < 10) {
-        return showToast('Enter valid phone number');
+    if (!phone || phone.length !== 10 || isNaN(phone)) {
+        return showToast('Please enter exactly 10 digits');
     }
 
     const sendBtnEl = document.getElementById('send-otp-btn');
@@ -552,6 +552,10 @@ if (fileInput) {
 // Custom enter behavior for OTP input
 document.getElementById('auth-otp').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') verifyOTP();
+});
+
+document.getElementById('auth-phone').addEventListener('input', (e) => {
+    e.target.value = e.target.value.replace(/\D/g, '');
 });
 
 document.getElementById('auth-phone').addEventListener('keydown', (e) => {
