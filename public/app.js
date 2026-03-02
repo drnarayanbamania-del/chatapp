@@ -6,14 +6,13 @@ let state = {
     users: [],
     messages: [],
     searchQuery: '',
-    pollInterval: null
+    pollInterval: null,
+    tempPhone: ''
 };
 
 // DOM Elements
 const authView = document.getElementById('auth-view');
 const chatView = document.getElementById('chat-view');
-const loginForm = document.getElementById('login-form');
-const signupForm = document.getElementById('signup-form');
 const userList = document.getElementById('user-list');
 const messagesContainer = document.getElementById('messages-container');
 const messageInput = document.getElementById('message-input');
@@ -37,72 +36,104 @@ async function init() {
     }
 }
 
-// Auth Functions
-function toggleAuth(type) {
-    const subtitle = document.getElementById('auth-subtitle');
-    if (type === 'signup') {
-        loginForm.classList.add('hidden');
-        signupForm.classList.remove('hidden');
-        subtitle.innerText = 'Create your account to start chatting.';
-    } else {
-        signupForm.classList.add('hidden');
-        loginForm.classList.remove('hidden');
-        subtitle.innerText = 'Welcome back! Please login to continue.';
-    }
-}
-
-async function handleLogin(e) {
-    e.preventDefault();
-    const email = document.getElementById('login-email').value;
-    const password = document.getElementById('login-password').value;
+// Auth Functions (OTP Based)
+async function sendOTP() {
+    const phone = document.getElementById('auth-phone').value.trim();
+    if (!phone) return showToast('Please enter phone number');
 
     try {
-        const res = await fetch('/api/auth/login', {
+        const res = await fetch('/api/auth/send-otp', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
+            body: JSON.stringify({ phone })
         });
         const data = await res.json();
 
         if (res.ok) {
-            state.token = data.token;
-            state.user = data.user;
-            localStorage.setItem('token', data.token);
-            updateCurrentUserUI();
-            showView('chat');
-            fetchChatList();
+            state.tempPhone = phone;
+            document.getElementById('otp-phone-display').innerText = `OTP sent to ${phone}`;
+            document.getElementById('step-phone').classList.add('hidden');
+            document.getElementById('step-otp').classList.remove('hidden');
+            showToast('OTP sent successfully!', 'success');
+
+            // For development: auto-fill OTP if returned (debug mode)
+            if (data.debug_otp) {
+                console.log('DEBUG OTP:', data.debug_otp);
+                document.getElementById('auth-otp').value = data.debug_otp;
+            }
         } else {
-            showToast(data.message || 'Login failed', 'error');
+            showToast(data.message || 'Failed to send OTP');
         }
     } catch (err) {
-        showToast('Server error', 'error');
+        showToast('Server error');
     }
 }
 
-async function handleSignup(e) {
-    e.preventDefault();
-    const name = document.getElementById('signup-name').value;
-    const username = document.getElementById('signup-username').value;
-    const email = document.getElementById('signup-email').value;
-    const password = document.getElementById('signup-password').value;
+async function verifyOTP() {
+    const otp = document.getElementById('auth-otp').value.trim();
+    if (!otp) return showToast('Please enter OTP');
 
     try {
-        const res = await fetch('/api/auth/signup', {
+        const res = await fetch('/api/auth/verify-otp', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, username, email, password })
+            body: JSON.stringify({ phone: state.tempPhone, otp })
         });
         const data = await res.json();
 
         if (res.ok) {
-            showToast('Account created! Please login.', 'success');
-            toggleAuth('login');
+            if (data.status === 'needs_profile') {
+                document.getElementById('step-otp').classList.add('hidden');
+                document.getElementById('step-profile').classList.remove('hidden');
+            } else {
+                loginSuccess(data);
+            }
         } else {
-            showToast(data.message || 'Signup failed', 'error');
+            showToast(data.message || 'Verification failed');
         }
     } catch (err) {
-        showToast('Server error', 'error');
+        showToast('Server error');
     }
+}
+
+async function completeProfile() {
+    const name = document.getElementById('profile-name-input').value.trim();
+    const username = document.getElementById('profile-username-input').value.trim();
+    const otp = document.getElementById('auth-otp').value.trim();
+
+    if (!name || !username) return showToast('Please fill all fields');
+
+    try {
+        const res = await fetch('/api/auth/verify-otp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: state.tempPhone, otp, name, username })
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+            loginSuccess(data);
+        } else {
+            showToast(data.message || 'Failed to complete profile');
+        }
+    } catch (err) {
+        showToast('Server error');
+    }
+}
+
+function loginSuccess(data) {
+    state.token = data.token;
+    state.user = data.user;
+    localStorage.setItem('token', data.token);
+    updateCurrentUserUI();
+    showView('chat');
+    fetchChatList();
+    showToast('Login successful!', 'success');
+}
+
+function backToPhone() {
+    document.getElementById('step-otp').classList.add('hidden');
+    document.getElementById('step-phone').classList.remove('hidden');
 }
 
 function logout() {
@@ -113,6 +144,11 @@ function logout() {
     localStorage.removeItem('token');
     clearInterval(state.pollInterval);
     showView('auth');
+
+    // Reset auth steps
+    document.getElementById('step-phone').classList.remove('hidden');
+    document.getElementById('step-otp').classList.add('hidden');
+    document.getElementById('step-profile').classList.add('hidden');
 }
 
 async function fetchProfile() {
@@ -152,7 +188,7 @@ function updateCurrentUserUI() {
         // Update Profile Drawer
         document.getElementById('profile-name').innerText = state.user.name;
         document.getElementById('profile-username').innerText = `@${state.user.username}`;
-        document.getElementById('profile-email').innerText = state.user.email;
+        document.getElementById('profile-email').innerText = state.user.email || 'No email set';
         document.getElementById('profile-date').innerText = new Date(state.user.created_at).toLocaleDateString([], { month: 'long', year: 'numeric' });
         document.getElementById('profile-avatar').innerText = state.user.name.charAt(0).toUpperCase();
     }
@@ -170,14 +206,12 @@ function toggleTheme() {
     const isDark = body.classList.contains('bg-[#0f172a]');
 
     if (isDark) {
-        // Switch to light
         body.classList.remove('bg-[#0f172a]', 'text-slate-200');
         body.classList.add('bg-slate-50', 'text-slate-900', 'light-mode');
         icon.classList.remove('fa-moon');
         icon.classList.add('fa-sun');
         localStorage.setItem('theme', 'light');
     } else {
-        // Switch to dark
         body.classList.remove('bg-slate-50', 'text-slate-900', 'light-mode');
         body.classList.add('bg-[#0f172a]', 'text-slate-200');
         icon.classList.remove('fa-sun');
@@ -186,7 +220,6 @@ function toggleTheme() {
     }
 }
 
-// Check saved theme
 if (localStorage.getItem('theme') === 'light') {
     toggleTheme();
 }
@@ -280,7 +313,6 @@ function renderUserList(users) {
                 <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center text-white font-bold text-lg shadow-inner">
                     ${u.name.charAt(0).toUpperCase()}
                 </div>
-                ${u.is_online ? '<div class="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-[#1e293b] rounded-full"></div>' : ''}
             </div>
             <div class="flex-1 overflow-hidden">
                 <div class="flex justify-between items-center mb-1">
@@ -311,7 +343,6 @@ function selectChat(user) {
     welcomeWindow.classList.add('hidden');
     activeChatWindow.classList.remove('hidden');
 
-    // On mobile: Close sidebar after selection
     if (window.innerWidth < 1024) {
         document.getElementById('sidebar').classList.remove('mobile-open');
     }
@@ -319,12 +350,9 @@ function selectChat(user) {
     document.getElementById('chat-header-name').innerText = user.name;
     document.getElementById('chat-header-avatar').innerText = user.name.charAt(0).toUpperCase();
 
-    // Highlight active in list
-    renderUserList(state.users); // Refresh list to show active highlight
-
+    renderUserList(state.users);
     fetchMessages();
 
-    // Start polling
     if (state.pollInterval) clearInterval(state.pollInterval);
     state.pollInterval = setInterval(fetchMessages, 3000);
 }
@@ -384,6 +412,21 @@ function renderMessages() {
     });
 }
 
+function scrollToBottom() {
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function formatTime(dateStr) {
+    const date = new Date(dateStr);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function escapeHTML(str) {
+    const p = document.createElement('p');
+    p.textContent = str;
+    return p.innerHTML;
+}
+
 async function sendMessage(file = null) {
     const text = messageInput.value.trim();
     if (!text && !file || !state.activeChat) return;
@@ -400,9 +443,7 @@ async function sendMessage(file = null) {
     try {
         const res = await fetch('/api/messages/send', {
             method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${state.token}`
-            },
+            headers: { 'Authorization': `Bearer ${state.token}` },
             body: formData
         });
 
@@ -410,35 +451,17 @@ async function sendMessage(file = null) {
             fetchMessages();
         } else {
             const data = await res.json();
-            showToast(data.message || 'Failed to send message', 'error');
-            messageInput.value = currentMsg; // Restore text on failure
+            showToast(data.message || 'Failed to send message');
+            messageInput.value = currentMsg;
         }
     } catch (err) {
-        showToast('Server error', 'error');
+        showToast('Server error');
         messageInput.value = currentMsg;
     }
 }
 
-// Utils
-function scrollToBottom() {
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-}
-
-function formatTime(dateStr) {
-    const date = new Date(dateStr);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
-
-function escapeHTML(str) {
-    const p = document.createElement('p');
-    p.textContent = str;
-    return p.innerHTML;
-}
-
 // Event Listeners
-loginForm.addEventListener('submit', handleLogin);
-signupForm.addEventListener('submit', handleSignup);
-sendBtn.addEventListener('click', sendMessage);
+sendBtn.addEventListener('click', () => sendMessage());
 messageInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
@@ -446,7 +469,6 @@ messageInput.addEventListener('keydown', (e) => {
     }
 });
 
-// Auto-expand textarea
 messageInput.addEventListener('input', () => {
     messageInput.style.height = 'auto';
     messageInput.style.height = (messageInput.scrollHeight) + 'px';
@@ -479,30 +501,18 @@ if (fileInput) {
         const file = e.target.files[0];
         if (file) {
             sendMessage(file);
-            fileInput.value = ''; // Reset for next selection
+            fileInput.value = '';
         }
     });
 }
 
-// Mobile Listeners
-const mobileBackBtn = document.getElementById('mobile-back-btn');
-if (mobileBackBtn) {
-    mobileBackBtn.addEventListener('click', () => {
-        document.getElementById('sidebar').classList.add('mobile-open');
-    });
-}
+// Custom enter behavior for OTP input
+document.getElementById('auth-otp').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') verifyOTP();
+});
 
-const mobileCloseBtn = document.getElementById('mobile-close-sidebar');
-if (mobileCloseBtn) {
-    mobileCloseBtn.addEventListener('click', () => {
-        document.getElementById('sidebar').classList.remove('mobile-open');
-    });
-}
+document.getElementById('auth-phone').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendOTP();
+});
 
-// Ensure sidebar is open on mobile initially if no chat
-if (window.innerWidth < 1024 && !state.activeChat) {
-    document.getElementById('sidebar').classList.add('mobile-open');
-}
-
-// Run Init
 init();

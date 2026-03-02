@@ -10,9 +10,9 @@ exports.searchUsers = (req, res) => {
 
     try {
         const users = db.prepare(`
-            SELECT id, name, username, email 
+            SELECT id, name, username, phone 
             FROM users 
-            WHERE (name LIKE ? OR username LIKE ? OR email LIKE ?) 
+            WHERE (name LIKE ? OR username LIKE ? OR phone LIKE ?) 
             AND id != ?
         `).all(`%${query}%`, `%${query}%`, `%${query}%`, currentUserId);
 
@@ -26,7 +26,7 @@ exports.getProfile = (req, res) => {
     const userId = req.userId;
 
     try {
-        const user = db.prepare('SELECT id, name, username, email, created_at FROM users WHERE id = ?').get(userId);
+        const user = db.prepare('SELECT id, name, username, email, phone, created_at FROM users WHERE id = ?').get(userId);
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
@@ -40,7 +40,7 @@ exports.getAllUsers = (req, res) => {
     const currentUserId = req.userId;
 
     try {
-        const users = db.prepare('SELECT id, name, username, email FROM users WHERE id != ?').all(currentUserId);
+        const users = db.prepare('SELECT id, name, username, phone FROM users WHERE id != ?').all(currentUserId);
         res.status(200).json(users);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching users' });
