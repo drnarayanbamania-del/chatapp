@@ -1,64 +1,68 @@
-const jwt = require('jsonwebtoken');
-const db = require('../models/db');
+const path = require('path');
+const fs = require('fs');
+
+const serviceAccountPath = path.join(__dirname, '../../serviceAccountKey.json');
+
+// Initialize Firebase Admin
+if (!admin.apps.length) {
+    try {
+        if (fs.existsSync(serviceAccountPath)) {
+            const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+            admin.initializeApp({
+                credential: admin.credential.cert(serviceAccount)
+            });
+            console.log("✅ Firebase Admin initialized with serviceAccountKey.json");
+        } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+            admin.initializeApp({
+                credential: admin.credential.applicationDefault()
+            });
+            console.log("✅ Firebase Admin initialized with Application Default Credentials");
+        } else {
+            console.warn("\n⚠️  Firebase Admin NOT initialized.");
+            console.warn("   Missing serviceAccountKey.json in root or GOOGLE_APPLICATION_CREDENTIALS env var.");
+            console.warn("   Login verification will fail in production.\n");
+        }
+    } catch (e) {
+        console.error("❌ Firebase Admin Initialization Error:", e.message);
+    }
+}
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
 
-// Mock function for sending SMS (In real world, use Twilio, Firebase, etc.)
-const sendSMS = (phone, otp) => {
-    console.log(`[SIMULATED SMS] To: ${phone} | Message: Your ChatApp OTP is ${otp}. Valid for 5 minutes.`);
-    return true;
-};
-
+// This is no longer needed but kept for route compatibility
 exports.sendOTP = async (req, res) => {
-    const { phone } = req.body;
-    if (!phone) {
-        return res.status(400).json({ message: 'Phone number is required' });
-    }
-
-    try {
-        // Generate 6 digit OTP
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
-
-        // Store OTP in database
-        const stmt = db.prepare('INSERT INTO otp_verifications (phone, otp, expires_at) VALUES (?, ?, ?)');
-        stmt.run(phone, otp, expiresAt.toISOString());
-
-        // Send OTP via mockup
-        sendSMS(phone, otp);
-
-        res.status(200).json({ message: 'OTP sent successfully', debug_otp: (process.env.NODE_ENV !== 'production' ? otp : null) });
-    } catch (error) {
-        console.error('Send OTP error:', error);
-        res.status(500).json({ message: 'Error sending OTP' });
-    }
+    res.status(200).json({ message: 'Firebase handles OTP sending on Client Side.' });
 };
 
 exports.verifyOTP = async (req, res) => {
-    const { phone, otp, name, username } = req.body;
+    const { firebaseToken, name, username } = req.body;
 
-    if (!phone || !otp) {
-        return res.status(400).json({ message: 'Phone and OTP are required' });
+    if (!firebaseToken) {
+        return res.status(400).json({ message: 'Firebase Token is required' });
     }
 
     try {
-        // Check OTP in DB
-        const verification = db.prepare(`
-            SELECT * FROM otp_verifications 
-            WHERE phone = ? AND otp = ? 
-            ORDER BY created_at DESC LIMIT 1
-        `).get(phone, otp);
-
-        if (!verification) {
-            return res.status(401).json({ message: 'Invalid OTP' });
+        let decodedToken;
+        try {
+            if (admin.apps.length === 0) {
+                throw new Error("Firebase Admin not initialized");
+            }
+            decodedToken = await admin.auth().verifyIdToken(firebaseToken);
+        } catch (authError) {
+            console.error("Firebase Verify Error:", authError.message);
+            // Fallback for development if no admin setup OR testing
+            if (process.env.NODE_ENV !== 'production' && (firebaseToken === 'debug-token' || !admin.apps.length)) {
+                console.warn("⚠️ Using DEBUG fallback for authentication");
+                decodedToken = { phone_number: '+1234567890' };
+            } else {
+                return res.status(401).json({ message: 'Authentication Service Unavailable or Invalid Token' });
+            }
         }
 
-        const expiresAt = new Date(verification.expires_at);
-        if (expiresAt < new Date()) {
-            return res.status(401).json({ message: 'OTP expired' });
-        }
+        const phone = decodedToken.phone_number;
+        if (!phone) return res.status(400).json({ message: 'Phone number not found in token' });
 
-        // OTP is valid. Check if user exists.
+        // Check if user exists.
         let user = db.prepare('SELECT * FROM users WHERE phone = ?').get(phone);
 
         if (!user) {
@@ -72,14 +76,11 @@ exports.verifyOTP = async (req, res) => {
             user = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
         }
 
-        // User logged in
-        const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' });
-
-        // Clean up OTPs for this phone
-        db.prepare('DELETE FROM otp_verifications WHERE phone = ?').run(phone);
+        // Successfully authenticated
+        const jwtToken = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' });
 
         res.status(200).json({
-            token,
+            token: jwtToken,
             user: {
                 id: user.id,
                 name: user.name,
@@ -89,15 +90,14 @@ exports.verifyOTP = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Verify OTP error:', error);
+        console.error('Verify OTP Sync error:', error);
         if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
             return res.status(400).json({ message: 'Username already taken' });
         }
-        res.status(500).json({ message: 'Error verifying OTP' });
+        res.status(500).json({ message: 'Error syncing with authentication' });
     }
 };
 
 exports.login = async (req, res) => {
-    // Legacy login, just redirect to sendOTP flow in frontend
-    res.status(405).json({ message: 'Please use OTP-based login' });
+    res.status(405).json({ message: 'Please use Phone-based login' });
 };

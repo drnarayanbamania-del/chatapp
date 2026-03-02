@@ -7,10 +7,30 @@ let state = {
     messages: [],
     searchQuery: '',
     pollInterval: null,
-    tempPhone: ''
+    tempPhone: '',
+    confirmationResult: null, // For Firebase
+    recaptchaVerifier: null    // For Firebase
 };
 
-// DOM Elements
+// Firebase Configuration (IMPORTANT: UPDATE THESE)
+const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_PROJECT_ID.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
+};
+
+// Initialize Firebase
+if (typeof firebase !== 'undefined') {
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+        console.log("🔥 Firebase Hub Initialized");
+    }
+}
+
+// Global DOM Elements
 const authView = document.getElementById('auth-view');
 const chatView = document.getElementById('chat-view');
 const userList = document.getElementById('user-list');
@@ -23,6 +43,13 @@ const welcomeWindow = document.getElementById('welcome-window');
 
 // Initialization
 async function init() {
+    // Initialize Recaptcha
+    if (typeof firebase !== 'undefined') {
+        state.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
+            'size': 'invisible'
+        });
+    }
+
     if (state.token) {
         const success = await fetchProfile();
         if (success) {
@@ -36,48 +63,120 @@ async function init() {
     }
 }
 
-// Auth Functions (OTP Based)
-async function sendOTP() {
-    const phone = document.getElementById('auth-phone').value.trim();
-    if (!phone) return showToast('Please enter phone number');
+// Auth Functions (Firebase OTP)
+let resendTimer = null;
+
+function startResendTimer() {
+    let timeLeft = 60;
+    const timerDisplay = document.getElementById('resend-timer');
+    const resendBtnBtn = document.getElementById('resend-btn');
+
+    if (!timerDisplay || !resendBtnBtn) return;
+
+    timerDisplay.classList.remove('hidden');
+    resendBtnBtn.classList.add('hidden');
+    timerDisplay.style.color = '#94a3b8'; // Reset color to slate-400
+
+    if (resendTimer) clearInterval(resendTimer);
+
+    resendTimer = setInterval(() => {
+        timeLeft--;
+        timerDisplay.innerHTML = `<i class="fa-regular fa-clock mr-1 animate-pulse"></i> Resend in ${timeLeft}s`;
+
+        // Visual feedback: change color when almost ready
+        if (timeLeft <= 10) {
+            timerDisplay.style.color = '#60a5fa'; // Shift to blue-400
+        }
+
+        if (timeLeft <= 0) {
+            clearInterval(resendTimer);
+            timerDisplay.classList.add('hidden');
+            resendBtnBtn.classList.remove('hidden');
+            resendBtnBtn.classList.add('animate-bounce-subtle'); // Subtle entrance
+        }
+    }, 1000);
+}
+
+async function sendOTP(isResend = false) {
+    let phoneInput = document.getElementById('auth-phone');
+    let phone = isResend ? state.tempPhone : phoneInput.value.trim();
+
+    // Auto-prefix with '+' if user forgets and entered multiple digits
+    if (phone && !phone.startsWith('+')) {
+        phone = '+' + phone.replace(/\D/g, ''); // Remove non-digits then add +
+        if (!isResend) phoneInput.value = phone;
+    }
+
+    if (!phone || phone.length < 10) {
+        return showToast('Enter valid phone with country code (e.g. +91...)');
+    }
+
+    const sendBtnEl = document.getElementById('send-otp-btn');
+    const originalBtnText = sendBtnEl.innerText;
+
+    sendBtnEl.disabled = true;
+    sendBtnEl.innerText = 'Sending...';
 
     try {
-        const res = await fetch('/api/auth/send-otp', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phone })
-        });
-        const data = await res.json();
+        const auth = firebase.auth();
 
-        if (res.ok) {
-            state.tempPhone = phone;
-            document.getElementById('otp-phone-display').innerText = `OTP sent to ${phone}`;
-            document.getElementById('step-phone').classList.add('hidden');
-            document.getElementById('step-otp').classList.remove('hidden');
-            showToast('OTP sent successfully!', 'success');
-
-            // For development: auto-fill OTP if returned (debug mode)
-            if (data.debug_otp) {
-                console.log('DEBUG OTP:', data.debug_otp);
-                document.getElementById('auth-otp').value = data.debug_otp;
-            }
-        } else {
-            showToast(data.message || 'Failed to send OTP');
+        // Ensure verifier is fresh
+        if (state.recaptchaVerifier) {
+            try { state.recaptchaVerifier.clear(); } catch (e) { }
+            document.getElementById('recaptcha-container').innerHTML = '';
         }
-    } catch (err) {
-        showToast('Server error');
+
+        state.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
+            'size': 'invisible'
+        });
+
+        state.confirmationResult = await auth.signInWithPhoneNumber(phone, state.recaptchaVerifier);
+        state.tempPhone = phone;
+
+        document.getElementById('otp-phone-display').innerText = `OTP sent to ${phone}`;
+        document.getElementById('step-phone').classList.add('hidden');
+        document.getElementById('step-otp').classList.remove('hidden');
+
+        showToast(isResend ? 'OTP Resent!' : 'OTP Sent!', 'success');
+        startResendTimer();
+    } catch (error) {
+        console.error('Firebase Auth Error:', error);
+        showToast(error.message || 'Failed to send OTP. Check your internet or number.');
+        if (typeof grecaptcha !== 'undefined') grecaptcha.reset();
+    } finally {
+        sendBtnEl.disabled = false;
+        sendBtnEl.innerText = originalBtnText;
     }
 }
 
 async function verifyOTP() {
     const otp = document.getElementById('auth-otp').value.trim();
     if (!otp) return showToast('Please enter OTP');
+    if (!state.confirmationResult) return showToast('Session expired. Go back and try again.');
 
+    try {
+        const result = await state.confirmationResult.confirm(otp);
+        const firebaseUser = result.user;
+        const idToken = await firebaseUser.getIdToken();
+
+        // Send Firebase token to Backend for registration/login
+        await syncWithBackend(idToken);
+    } catch (error) {
+        console.error("OTP Verification Error:", error);
+        showToast('Invalid code. Please try again.');
+    }
+}
+
+async function syncWithBackend(idToken, name = null, username = null) {
     try {
         const res = await fetch('/api/auth/verify-otp', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phone: state.tempPhone, otp })
+            body: JSON.stringify({
+                firebaseToken: idToken,
+                name,
+                username
+            })
         });
         const data = await res.json();
 
@@ -85,40 +184,26 @@ async function verifyOTP() {
             if (data.status === 'needs_profile') {
                 document.getElementById('step-otp').classList.add('hidden');
                 document.getElementById('step-profile').classList.remove('hidden');
+                state.tempToken = idToken;
             } else {
                 loginSuccess(data);
             }
         } else {
-            showToast(data.message || 'Verification failed');
+            showToast(data.message || 'Sync failed');
         }
     } catch (err) {
-        showToast('Server error');
+        showToast('Server connection error');
     }
 }
 
 async function completeProfile() {
     const name = document.getElementById('profile-name-input').value.trim();
     const username = document.getElementById('profile-username-input').value.trim();
-    const otp = document.getElementById('auth-otp').value.trim();
 
     if (!name || !username) return showToast('Please fill all fields');
+    if (!state.tempToken) return showToast('Session expired');
 
-    try {
-        const res = await fetch('/api/auth/verify-otp', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phone: state.tempPhone, otp, name, username })
-        });
-        const data = await res.json();
-
-        if (res.ok) {
-            loginSuccess(data);
-        } else {
-            showToast(data.message || 'Failed to complete profile');
-        }
-    } catch (err) {
-        showToast('Server error');
-    }
+    await syncWithBackend(state.tempToken, name, username);
 }
 
 function loginSuccess(data) {
