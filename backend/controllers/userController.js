@@ -10,11 +10,30 @@ exports.searchUsers = (req, res) => {
 
     try {
         const users = db.prepare(`
-            SELECT id, name, username, phone, profile_photo 
-            FROM users 
-            WHERE (name LIKE ? OR username LIKE ? OR phone LIKE ?) 
-            AND id != ?
-        `).all(`%${query}%`, `%${query}%`, `%${query}%`, currentUserId);
+            SELECT 
+                u.id, 
+                u.name, 
+                u.username, 
+                u.phone, 
+                u.profile_photo,
+                (SELECT message FROM messages 
+                 WHERE (sender_id = ? AND receiver_id = u.id) 
+                 OR (sender_id = u.id AND receiver_id = ?) 
+                 ORDER BY created_at DESC LIMIT 1) as last_message,
+                (SELECT created_at FROM messages 
+                 WHERE (sender_id = ? AND receiver_id = u.id) 
+                 OR (sender_id = u.id AND receiver_id = ?) 
+                 ORDER BY created_at DESC LIMIT 1) as last_message_time,
+                (SELECT COUNT(*) FROM messages 
+                 WHERE sender_id = u.id AND receiver_id = ? AND is_read = 0) as unread_count
+            FROM users u
+            WHERE (u.name LIKE ? OR u.username LIKE ? OR u.phone LIKE ?) 
+            AND u.id != ?
+            ORDER BY last_message_time IS NULL, last_message_time DESC, u.name ASC
+        `).all(
+            currentUserId, currentUserId, currentUserId, currentUserId, currentUserId,
+            `%${query}%`, `%${query}%`, `%${query}%`, currentUserId
+        );
 
         res.status(200).json(users);
     } catch (error) {

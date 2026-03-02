@@ -103,12 +103,13 @@ exports.getChatList = (req, res) => {
     const userId = req.userId;
 
     try {
-        // Enhanced Chat List query to get the last message and its time
+        // Enhanced Chat List query to get the last message and its time for all users
         const chatList = db.prepare(`
             SELECT 
                 u.id, 
                 u.name, 
                 u.username,
+                u.profile_photo,
                 (SELECT message FROM messages 
                  WHERE (sender_id = ? AND receiver_id = u.id) 
                  OR (sender_id = u.id AND receiver_id = ?) 
@@ -120,12 +121,9 @@ exports.getChatList = (req, res) => {
                 (SELECT COUNT(*) FROM messages 
                  WHERE sender_id = u.id AND receiver_id = ? AND is_read = 0) as unread_count
             FROM users u
-            WHERE u.id IN (
-                SELECT DISTINCT sender_id FROM messages WHERE receiver_id = ?
-                UNION
-                SELECT DISTINCT receiver_id FROM messages WHERE sender_id = ?
-            )
-        `).all(userId, userId, userId, userId, userId, userId, userId);
+            WHERE u.id != ?
+            ORDER BY last_message_time IS NULL, last_message_time DESC, u.name ASC
+        `).all(userId, userId, userId, userId, userId, userId);
 
         res.status(200).json(chatList);
     } catch (error) {
