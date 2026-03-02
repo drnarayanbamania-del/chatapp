@@ -597,9 +597,12 @@ function renderUserList(users) {
             <div class="flex-1 overflow-hidden">
                 <div class="flex justify-between items-center mb-1">
                     <h4 class="font-semibold text-white truncate text-sm">${u.name}</h4>
-                    <span class="last-message-time">${time}</span>
+                    <span class="last-message-time flex items-center gap-1">${time}</span>
                 </div>
-                <p class="last-message-preview truncate">${lastMsg}</p>
+                <div class="flex justify-between items-center">
+                    <p class="last-message-preview truncate flex-1">${lastMsg}</p>
+                    ${u.unread_count > 0 && !isLocked ? `<div class="w-5 h-5 flex items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white shadow">${u.unread_count > 99 ? '99+' : u.unread_count}</div>` : ''}
+                </div>
             </div>
         `;
         div.onclick = () => selectChat(u);
@@ -682,9 +685,27 @@ async function deleteMessageAPI(id) {
             renderMessages();
         }
     } catch (e) {
-        showToast('Failed to delete message');
+        showToast('Error deleting message');
     }
 }
+
+async function toggleFavouriteAPI(id) {
+    try {
+        const res = await fetch(`/api/messages/${id}/favourite`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${state.token}` }
+        });
+        if (res.ok) {
+            const data = await res.json();
+            state.messages = state.messages.map(m => m.id === id ? { ...m, is_favourite: data.is_favourite } : m);
+            renderMessages();
+            showToast(data.is_favourite ? 'Saved to favourites' : 'Removed from favourites', 'success');
+        }
+    } catch (e) {
+        showToast('Error modifying favourite');
+    }
+}
+
 
 // Message Functions
 async function fetchMessages() {
@@ -749,22 +770,32 @@ function renderMessages() {
         ` : '';
 
         const deleteBtn = (isMe && !msg.is_deleted) ? `
-            <button onclick="deleteMessageAPI(${msg.id})" class="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-red-400 transition-all text-xs ml-2">
+            <button onclick="deleteMessageAPI(${msg.id})" class="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-red-400 transition-all text-xs ml-2 cursor-pointer" title="Delete for everyone">
                 <i class="fa-solid fa-trash-can"></i>
+            </button>
+        ` : '';
+
+        const favBtn = !msg.is_deleted ? `
+            <button onclick="toggleFavouriteAPI(${msg.id})" class="opacity-0 group-hover:opacity-100 p-1 ${msg.is_favourite ? 'text-yellow-400 opacity-100' : 'text-slate-500 hover:text-yellow-400'} transition-all text-xs ml-2 cursor-pointer" title="Favourite">
+                <i class="fa-solid fa-star"></i>
             </button>
         ` : '';
 
         div.innerHTML = `
             <div class="flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[80%]">
-                <div class="message-bubble ${isMe ? 'message-sent' : 'message-received'} ${msg.is_deleted ? 'italic opacity-60' : ''} relative">
+                <div class="message-bubble ${isMe ? 'message-sent' : 'message-received'} ${msg.is_deleted ? 'italic opacity-60' : ''} relative overflow-hidden group/inner">
+                    ${msg.is_favourite ? '<div class="absolute top-1 right-2 text-[10px] text-yellow-400"><i class="fa-solid fa-star"></i></div>' : ''}
                     ${attachmentHTML}
-                    ${msg.message ? `<p class="text-[14px] leading-relaxed">${escapeHTML(msg.message)}</p>` : ''}
+                    ${msg.message ? `<p class="text-[14px] leading-relaxed relative z-10 break-words ${msg.is_favourite ? 'pr-4' : ''}">${escapeHTML(msg.message)}</p>` : ''}
                     <div class="flex items-center justify-end mt-1 gap-1">
-                        <span class="text-[9px] uppercase font-bold tracking-tighter ${isMe ? 'text-blue-200/60' : 'text-slate-500'}">${formatTime(msg.created_at)}</span>
+                        <span class="text-[10px] uppercase font-bold tracking-tighter ${isMe ? 'text-blue-100/80' : 'text-slate-400'}">${formatTime(msg.created_at)}</span>
                         ${ticksHTML}
                     </div>
                 </div>
-                ${deleteBtn}
+                <div class="flex items-center">
+                    ${deleteBtn}
+                    ${favBtn}
+                </div>
             </div>
         `;
         messagesContainer.appendChild(div);

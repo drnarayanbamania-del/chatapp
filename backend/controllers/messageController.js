@@ -116,17 +116,43 @@ exports.getChatList = (req, res) => {
                 (SELECT created_at FROM messages 
                  WHERE (sender_id = ? AND receiver_id = u.id) 
                  OR (sender_id = u.id AND receiver_id = ?) 
-                 ORDER BY created_at DESC LIMIT 1) as last_message_time
+                 ORDER BY created_at DESC LIMIT 1) as last_message_time,
+                (SELECT COUNT(*) FROM messages 
+                 WHERE sender_id = u.id AND receiver_id = ? AND is_read = 0) as unread_count
             FROM users u
             WHERE u.id IN (
                 SELECT DISTINCT sender_id FROM messages WHERE receiver_id = ?
                 UNION
                 SELECT DISTINCT receiver_id FROM messages WHERE sender_id = ?
             )
-        `).all(userId, userId, userId, userId, userId, userId);
+        `).all(userId, userId, userId, userId, userId, userId, userId);
 
         res.status(200).json(chatList);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching chat list' });
+    }
+};
+
+exports.toggleFavourite = (req, res) => {
+    const { id } = req.params;
+    const userId = req.userId;
+
+    try {
+        const msg = db.prepare('SELECT * FROM messages WHERE id = ?').get(id);
+        if (!msg) return res.status(404).json({ message: 'Message not found' });
+
+        const newStatus = msg.is_favourite ? 0 : 1;
+        db.prepare('UPDATE messages SET is_favourite = ? WHERE id = ?').run(newStatus, id);
+
+        // Notify client
+        const io = req.app.get('socketio');
+        if (io) {
+            io.to(`user_${userId}`).emit('message_favourited', { id, is_favourite: newStatus });
+            // Optionally, we don't need to notify the other user about favourites, usually it's local to the user.
+        }
+
+        res.status(200).json({ success: true, is_favourite: newStatus });
+    } catch (error) {
+        res.status(500).json({ message: 'Error toggling favourite' });
     }
 };
