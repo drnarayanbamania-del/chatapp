@@ -15,11 +15,11 @@ let state = {
 // Firebase Configuration (IMPORTANT: UPDATE THESE)
 const firebaseConfig = {
     apiKey: "AIzaSyA5JSMRrqclew7jSfmRhtYAG9vlAqEhYQw",
-    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT_ID.appspot.com",
-    messagingSenderId: "YOUR_SENDER_ID",
-    appId: "YOUR_APP_ID"
+    authDomain: "chatapp-2a493.firebaseapp.com",
+    projectId: "chatapp-2a493",
+    storageBucket: "chatapp-2a493.firebasestorage.app",
+    messagingSenderId: "424580791190",
+    appId: "1:424580791190:web:28809bede807633811fbb7"
 };
 
 // Initialize Firebase
