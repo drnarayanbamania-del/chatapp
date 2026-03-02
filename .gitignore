@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Local Environment
+.env
+
+# Database (keep migrations/init.js scripts, ignore binary)
+database/database.sqlite
+
+# Zip packages
+*.zip
+
+# System files
+.DS_Store
+Thumbs.db

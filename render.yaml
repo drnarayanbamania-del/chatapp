@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: chat-app
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: PORT
+        value: 10000
+    disk:
+      name: chat-db
+      mountPath: /opt/render/project/src/database
+      sizeGB: 1
