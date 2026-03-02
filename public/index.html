@@ -11,9 +11,7 @@
         rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <link rel="stylesheet" href="style.css">
 </head>
 
 <body class="bg-[#0f172a] text-slate-200 font-['Inter'] transition-colors duration-300">
@@ -29,6 +27,11 @@
                         class="text-3xl font-bold font-['Outfit'] bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent">
                         ChatApp</h1>
                     <p class="text-slate-400 mt-2" id="auth-subtitle">Welcome back! Please login to continue.</p>
+                    <div
+                        class="mt-4 flex items-center justify-center gap-2 text-[10px] uppercase tracking-widest text-blue-400/60 font-medium">
+                        <i class="fa-solid fa-shield-halved"></i>
+                        <span>Fast & Secure Phone Verification</span>
+                    </div>
                 </div>
 
                 <!-- Phone Authentication Form -->
@@ -37,10 +40,9 @@
                     <div id="step-phone" class="space-y-4">
                         <div>
                             <label class="block text-sm font-medium text-slate-400 mb-1">Phone Number</label>
-                            <input type="tel" id="auth-phone" placeholder="+1234567890" required
+                            <input type="tel" id="auth-phone" placeholder="9876543210" required
                                 class="w-full bg-[#0f172a] border border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-white">
                         </div>
-                        <div id="recaptcha-container" class="mt-2 flex justify-center"></div>
                         <button onclick="sendOTP()" id="send-otp-btn"
                             class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3 rounded-xl shadow-lg shadow-blue-500/20 transition-all active:scale-[0.98]">
                             Send OTP

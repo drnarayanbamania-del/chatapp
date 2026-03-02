@@ -7,28 +7,8 @@ let state = {
     messages: [],
     searchQuery: '',
     pollInterval: null,
-    tempPhone: '',
-    confirmationResult: null, // For Firebase
-    recaptchaVerifier: null    // For Firebase
+    tempPhone: ''
 };
-
-// Firebase Configuration (IMPORTANT: UPDATE THESE)
-const firebaseConfig = {
-    apiKey: "AIzaSyA5JSMRrqclew7jSfmRhtYAG9vlAqEhYQw",
-    authDomain: "chatapp-2a493.firebaseapp.com",
-    projectId: "chatapp-2a493",
-    storageBucket: "chatapp-2a493.firebasestorage.app",
-    messagingSenderId: "424580791190",
-    appId: "1:424580791190:web:28809bede807633811fbb7"
-};
-
-// Initialize Firebase
-if (typeof firebase !== 'undefined') {
-    if (!firebase.apps.length) {
-        firebase.initializeApp(firebaseConfig);
-        console.log("🔥 Firebase Hub Initialized");
-    }
-}
 
 // Global DOM Elements
 const authView = document.getElementById('auth-view');
@@ -43,13 +23,6 @@ const welcomeWindow = document.getElementById('welcome-window');
 
 // Initialization
 async function init() {
-    // Initialize Recaptcha
-    if (typeof firebase !== 'undefined') {
-        state.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
-            'size': 'invisible'
-        });
-    }
-
     if (state.token) {
         const success = await fetchProfile();
         if (success) {
@@ -63,11 +36,11 @@ async function init() {
     }
 }
 
-// Auth Functions (Firebase OTP)
+// Auth Functions (MOCK OTP)
 let resendTimer = null;
 
 function startResendTimer() {
-    let timeLeft = 60;
+    let timeLeft = 30;
     const timerDisplay = document.getElementById('resend-timer');
     const resendBtnBtn = document.getElementById('resend-btn');
 
@@ -75,7 +48,7 @@ function startResendTimer() {
 
     timerDisplay.classList.remove('hidden');
     resendBtnBtn.classList.add('hidden');
-    timerDisplay.style.color = '#94a3b8'; // Reset color to slate-400
+    timerDisplay.style.color = '#94a3b8';
 
     if (resendTimer) clearInterval(resendTimer);
 
@@ -83,32 +56,20 @@ function startResendTimer() {
         timeLeft--;
         timerDisplay.innerHTML = `<i class="fa-regular fa-clock mr-1 animate-pulse"></i> Resend in ${timeLeft}s`;
 
-        // Visual feedback: change color when almost ready
-        if (timeLeft <= 10) {
-            timerDisplay.style.color = '#60a5fa'; // Shift to blue-400
-        }
-
         if (timeLeft <= 0) {
             clearInterval(resendTimer);
             timerDisplay.classList.add('hidden');
             resendBtnBtn.classList.remove('hidden');
-            resendBtnBtn.classList.add('animate-bounce-subtle'); // Subtle entrance
         }
     }, 1000);
 }
 
 async function sendOTP(isResend = false) {
-    let phoneInput = document.getElementById('auth-phone');
-    let phone = isResend ? state.tempPhone : phoneInput.value.trim();
-
-    // Auto-prefix with '+' if user forgets and entered multiple digits
-    if (phone && !phone.startsWith('+')) {
-        phone = '+' + phone.replace(/\D/g, ''); // Remove non-digits then add +
-        if (!isResend) phoneInput.value = phone;
-    }
+    const phoneInput = document.getElementById('auth-phone');
+    const phone = isResend ? state.tempPhone : phoneInput.value.trim();
 
     if (!phone || phone.length < 10) {
-        return showToast('Enter valid phone with country code (e.g. +91...)');
+        return showToast('Enter valid phone number');
     }
 
     const sendBtnEl = document.getElementById('send-otp-btn');
@@ -118,31 +79,33 @@ async function sendOTP(isResend = false) {
     sendBtnEl.innerText = 'Sending...';
 
     try {
-        const auth = firebase.auth();
-
-        // Ensure verifier is fresh
-        if (state.recaptchaVerifier) {
-            try { state.recaptchaVerifier.clear(); } catch (e) { }
-            document.getElementById('recaptcha-container').innerHTML = '';
-        }
-
-        state.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
-            'size': 'invisible'
+        const res = await fetch('/api/auth/send-otp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone })
         });
+        const data = await res.json();
 
-        state.confirmationResult = await auth.signInWithPhoneNumber(phone, state.recaptchaVerifier);
-        state.tempPhone = phone;
+        if (res.ok) {
+            state.tempPhone = phone;
+            document.getElementById('otp-phone-display').innerText = `OTP sent to ${phone}`;
+            document.getElementById('step-phone').classList.add('hidden');
+            document.getElementById('step-otp').classList.remove('hidden');
 
-        document.getElementById('otp-phone-display').innerText = `OTP sent to ${phone}`;
-        document.getElementById('step-phone').classList.add('hidden');
-        document.getElementById('step-otp').classList.remove('hidden');
+            showToast(isResend ? 'OTP Resent!' : 'OTP Sent!', 'success');
+            startResendTimer();
 
-        showToast(isResend ? 'OTP Resent!' : 'OTP Sent!', 'success');
-        startResendTimer();
-    } catch (error) {
-        console.error('Firebase Auth Error:', error);
-        showToast(error.message || 'Failed to send OTP. Check your internet or number.');
-        if (typeof grecaptcha !== 'undefined') grecaptcha.reset();
+            if (data.debug_otp) {
+                console.log('--- DEBUG OTP RECEIVED ---');
+                console.log('OTP Code:', data.debug_otp);
+                console.log('---------------------------');
+                showToast(`Check Console (F12) for OTP: ${data.debug_otp}`, 'success');
+            }
+        } else {
+            showToast(data.message || 'Failed to send OTP');
+        }
+    } catch (err) {
+        showToast('Server connection error. Check if backend is running.');
     } finally {
         sendBtnEl.disabled = false;
         sendBtnEl.innerText = originalBtnText;
@@ -152,31 +115,12 @@ async function sendOTP(isResend = false) {
 async function verifyOTP() {
     const otp = document.getElementById('auth-otp').value.trim();
     if (!otp) return showToast('Please enter OTP');
-    if (!state.confirmationResult) return showToast('Session expired. Go back and try again.');
 
-    try {
-        const result = await state.confirmationResult.confirm(otp);
-        const firebaseUser = result.user;
-        const idToken = await firebaseUser.getIdToken();
-
-        // Send Firebase token to Backend for registration/login
-        await syncWithBackend(idToken);
-    } catch (error) {
-        console.error("OTP Verification Error:", error);
-        showToast('Invalid code. Please try again.');
-    }
-}
-
-async function syncWithBackend(idToken, name = null, username = null) {
     try {
         const res = await fetch('/api/auth/verify-otp', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                firebaseToken: idToken,
-                name,
-                username
-            })
+            body: JSON.stringify({ phone: state.tempPhone, otp })
         });
         const data = await res.json();
 
@@ -184,26 +128,40 @@ async function syncWithBackend(idToken, name = null, username = null) {
             if (data.status === 'needs_profile') {
                 document.getElementById('step-otp').classList.add('hidden');
                 document.getElementById('step-profile').classList.remove('hidden');
-                state.tempToken = idToken;
             } else {
                 loginSuccess(data);
             }
         } else {
-            showToast(data.message || 'Sync failed');
+            showToast(data.message || 'Incorrect OTP');
         }
     } catch (err) {
-        showToast('Server connection error');
+        showToast('Verification failed');
     }
 }
 
 async function completeProfile() {
     const name = document.getElementById('profile-name-input').value.trim();
     const username = document.getElementById('profile-username-input').value.trim();
+    const otp = document.getElementById('auth-otp').value.trim();
 
     if (!name || !username) return showToast('Please fill all fields');
-    if (!state.tempToken) return showToast('Session expired');
 
-    await syncWithBackend(state.tempToken, name, username);
+    try {
+        const res = await fetch('/api/auth/verify-otp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: state.tempPhone, otp, name, username })
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+            loginSuccess(data);
+        } else {
+            showToast(data.message || 'Username might be taken');
+        }
+    } catch (err) {
+        showToast('Profile setup failed');
+    }
 }
 
 function loginSuccess(data) {
