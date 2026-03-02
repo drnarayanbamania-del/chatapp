@@ -277,3 +277,44 @@ textarea::placeholder {
         transform: translateY(-2px);
     }
 }
+
+/* Voice Note Styling */
+.voice-note-container {
+    transition: all 0.3s ease;
+}
+
+.voice-note-container:hover {
+    background: rgba(30, 41, 59, 0.6);
+}
+
+.audio-progress {
+    transition: width 0.1s linear;
+}
+
+/* Ticks style fix */
+.fa-check-double {
+    font-size: 0.7rem;
+}
+
+.message-bubble p {
+    word-break: break-word;
+}
+
+/* Recording Pulse */
+@keyframes pulse-red {
+    0% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+
+    100% {
+        opacity: 1;
+    }
+}
+
+.recording-active {
+    animation: pulse-red 1s infinite;
+}

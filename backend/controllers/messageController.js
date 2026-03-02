@@ -25,10 +25,59 @@ exports.sendMessage = (req, res) => {
         const info = stmt.run(sender_id, receiver_id, message || '', attachment_path, attachment_name, attachment_type);
 
         const newMessage = db.prepare('SELECT * FROM messages WHERE id = ?').get(info.lastInsertRowid);
+
+        // Emit via Socket.io
+        const io = req.app.get('socketio');
+        if (io) {
+            io.to(`user_${receiver_id}`).emit('new_message', newMessage);
+        }
+
         res.status(201).json(newMessage);
     } catch (error) {
         console.error('Send message error:', error);
         res.status(500).json({ message: 'Error sending message' });
+    }
+};
+
+exports.deleteMessage = (req, res) => {
+    const { id } = req.params;
+    const userId = req.userId;
+
+    try {
+        const msg = db.prepare('SELECT * FROM messages WHERE id = ?').get(id);
+        if (!msg) return res.status(404).json({ message: 'Message not found' });
+        if (msg.sender_id !== userId) return res.status(403).json({ message: 'Unauthorized' });
+
+        db.prepare('UPDATE messages SET is_deleted = 1, message = "This message was deleted" WHERE id = ?').run(id);
+
+        // Notify receiver
+        const io = req.app.get('socketio');
+        if (io) {
+            io.to(`user_${msg.receiver_id}`).emit('message_deleted', { id });
+        }
+
+        res.status(200).json({ success: true });
+    } catch (error) {
+        res.status(500).json({ message: 'Error deleting message' });
+    }
+};
+
+exports.markAsRead = (req, res) => {
+    const { otherUserId } = req.params;
+    const userId = req.userId;
+
+    try {
+        db.prepare('UPDATE messages SET is_read = 1 WHERE sender_id = ? AND receiver_id = ? AND is_read = 0').run(otherUserId, userId);
+
+        // Notify sender that their messages were read
+        const io = req.app.get('socketio');
+        if (io) {
+            io.to(`user_${otherUserId}`).emit('messages_read', { readerId: userId });
+        }
+
+        res.status(200).json({ success: true });
+    } catch (error) {
+        res.status(500).json({ message: 'Error marking messages as read' });
     }
 };
 

@@ -11,7 +11,7 @@
         rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="style.css">
+    <script src="/socket.io/socket.io.js"></script>
 </head>
 
 <body class="bg-[#0f172a] text-slate-200 font-['Inter'] transition-colors duration-300">
@@ -212,14 +212,22 @@
                                             class="text-[10px] text-slate-500 font-medium uppercase tracking-tighter">Active
                                             now</span>
                                     </div>
+                                    <div id="typing-indicator"
+                                        class="hidden text-[10px] text-blue-400 font-medium animate-pulse mt-1">
+                                        is typing...
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                        class="flex items-center gap-4 text-slate-400">
-                        <button class="hover:text-white transition-colors"><i class="fa-solid fa-phone"></i></button>
-                        <button class="hover:text-white transition-colors"><i class="fa-solid fa-video"></i></button>
-                        <button class="hover:text-white transition-colors"><i
-                                class="fa-solid fa-ellipsis-vertical"></i></button>
+        </div>
+        <div class="flex items-center gap-4 text-slate-400">
+            <button class="hover:text-white transition-colors" onclick="toggleChatLock()" id="chat-lock-btn"
+                title="Lock Chat">
+                <i class="fa-solid fa-lock-open"></i>
+            </button>
+            <button class="hover:text-white transition-colors"><i class="fa-solid fa-phone"></i></button>
+            <button class="hover:text-white transition-colors"><i class="fa-solid fa-video"></i></button>
+            <button class="hover:text-white transition-colors"><i class="fa-solid fa-ellipsis-vertical"></i></button>
         </div>
         </header>
 
@@ -279,6 +287,19 @@
                 <input type="file" id="file-input" class="hidden" accept="image/*,.pdf,.doc,.docx,.txt">
                 <textarea id="message-input" placeholder="Type a message..." rows="1"
                     class="flex-1 bg-transparent border-none focus:ring-0 text-slate-200 py-2 resize-none custom-scrollbar min-h-[40px] max-h-32"></textarea>
+
+                <div id="recording-ui"
+                    class="hidden flex items-center gap-3 px-4 py-2 bg-red-500/10 rounded-xl border border-red-500/20 animate-pulse flex-1">
+                    <div class="w-2 h-2 rounded-full bg-red-500"></div>
+                    <span class="text-xs font-bold text-red-500 uppercase tracking-wider">Recording... <span
+                            id="record-timer">0:00</span></span>
+                    <button onclick="cancelRecording()" class="ml-auto text-slate-400 hover:text-white"><i
+                            class="fa-solid fa-xmark"></i></button>
+                </div>
+
+                <button id="voice-btn" class="p-2 text-slate-400 hover:text-red-500 transition-colors">
+                    <i class="fa-solid fa-microphone text-xl"></i>
+                </button>
                 <button id="send-btn"
                     class="bg-blue-600 hover:bg-blue-500 text-white w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-lg shadow-blue-500/20 active:scale-95">
                     <i class="fa-solid fa-paper-plane"></i>
@@ -301,9 +322,18 @@
         </div>
 
         <div class="flex flex-col items-center text-center mb-12">
-            <div class="w-24 h-24 rounded-3xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-4xl font-bold mb-6 shadow-xl shadow-blue-500/20"
-                id="profile-avatar">
-                ?
+            <div class="relative mb-6 group cursor-pointer overflow-visible"
+                onclick="document.getElementById('profile-photo-input').click()">
+                <div class="w-24 h-24 rounded-3xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-4xl font-bold shadow-xl shadow-blue-500/20 overflow-hidden"
+                    id="profile-avatar">
+                    ?
+                </div>
+                <div
+                    class="absolute inset-0 bg-slate-900/60 rounded-3xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all backdrop-blur-sm">
+                    <i class="fa-solid fa-camera text-2xl text-white"></i>
+                </div>
+                <input type="file" id="profile-photo-input" class="hidden" accept="image/*"
+                    onchange="uploadProfilePhoto(this)">
             </div>
             <h3 class="text-xl font-bold text-white mb-1" id="profile-name">Full Name</h3>
             <p class="text-slate-400" id="profile-username">@username</p>
@@ -340,6 +370,28 @@
         class="fixed bottom-8 left-1/2 -translate-x-1/2 px-6 py-3 rounded-2xl bg-red-500 text-white shadow-2xl transition-all duration-300 translate-y-20 opacity-0 pointer-events-none z-[100] flex items-center gap-3">
         <i id="toast-icon" class="fa-solid fa-circle-exclamation"></i>
         <span id="toast-message">Error message here</span>
+    </div>
+
+    <!-- Chat Lock Modal -->
+    <div id="lock-modal"
+        class="hidden fixed inset-0 z-[70] flex items-center justify-center bg-[#0f172a]/90 backdrop-blur-xl transition-all">
+        <div class="bg-[#1e293b] p-8 rounded-3xl shadow-2xl w-full max-w-sm border border-slate-700/50 text-center">
+            <div
+                class="w-16 h-16 rounded-2xl bg-red-500/10 flex items-center justify-center text-red-500 text-3xl mx-auto mb-6">
+                <i class="fa-solid fa-lock"></i>
+            </div>
+            <h3 class="text-xl font-bold text-white mb-2" id="lock-modal-title">Enter Passcode</h3>
+            <p class="text-slate-400 text-sm mb-6" id="lock-modal-desc">This chat is locked. Please enter your 4-digit
+                passcode.</p>
+            <input type="password" id="lock-passcode" placeholder="••••" maxlength="4"
+                class="w-full bg-[#0f172a] border border-slate-700 rounded-xl px-4 py-3 text-center text-2xl tracking-[0.5em] focus:outline-none focus:ring-2 focus:ring-red-500 transition-all text-white font-bold mb-6">
+            <button id="lock-submit-btn"
+                class="w-full bg-red-600 hover:bg-red-500 text-white font-semibold py-3 rounded-xl shadow-lg shadow-red-500/20 transition-all active:scale-[0.98]">
+                Unlock Chat
+            </button>
+            <button onclick="closeLockModal()" id="lock-cancel-btn"
+                class="w-full mt-3 text-slate-400 hover:text-white transition-colors text-sm">Cancel</button>
+        </div>
     </div>
 
     <script src="app.js"></script>

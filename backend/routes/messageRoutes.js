@@ -23,5 +23,7 @@ router.use(authMiddleware);
 router.post('/send', upload.single('file'), messageController.sendMessage);
 router.get('/:otherUserId', messageController.getMessages);
 router.get('/chat-list', messageController.getChatList);
+router.delete('/:id', messageController.deleteMessage);
+router.post('/read/:otherUserId', messageController.markAsRead);
 
 module.exports = router;
