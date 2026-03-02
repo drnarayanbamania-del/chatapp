@@ -232,8 +232,25 @@
         <footer class="p-6 bg-transparent">
             <div
                 class="max-w-4xl mx-auto flex items-end gap-3 bg-[#1e293b] p-3 rounded-2xl border border-slate-700/50 shadow-xl">
-                <button class="p-2 text-slate-400 hover:text-blue-400 transition-colors"><i
-                        class="fa-regular fa-face-smile text-xl"></i></button>
+                <div class="relative group">
+                    <button onclick="toggleEmojiPicker()"
+                        class="p-2 text-slate-400 hover:text-yellow-400 transition-colors">
+                        <i class="fa-regular fa-face-smile text-xl"></i>
+                    </button>
+                    <!-- Emoji/Sticker Picker -->
+                    <div id="emoji-picker"
+                        class="hidden absolute bottom-full left-0 mb-4 bg-[#1e293b] border border-slate-700/50 rounded-2xl shadow-2xl w-72 lg:w-80 overflow-hidden z-[60] animate-slide-up">
+                        <div class="flex border-b border-slate-700/50 bg-slate-800/50">
+                            <button onclick="showPickerTab('emojis')" id="tab-emojis"
+                                class="flex-1 py-3 text-xs font-bold uppercase tracking-wider text-blue-400 border-b-2 border-blue-400 transition-all">Emojis</button>
+                            <button onclick="showPickerTab('stickers')" id="tab-stickers"
+                                class="flex-1 py-3 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white transition-all">Stickers</button>
+                        </div>
+                        <div id="picker-content" class="h-64 overflow-y-auto p-4 custom-scrollbar">
+                            <!-- Content injected by JS -->
+                        </div>
+                    </div>
+                </div>
                 <div class="relative group">
                     <button id="attach-btn" class="p-2 text-slate-400 hover:text-blue-400 transition-colors">
                         <i class="fa-solid fa-paperclip text-xl"></i>

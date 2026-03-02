@@ -247,6 +247,81 @@ function toggleSidebar() {
     sidebar.classList.toggle('-translate-x-full');
 }
 
+// Emoji & Sticker Logic
+const commonEmojis = ['😀', '😂', '🥰', '😎', '🤔', '😢', '🔥', '👍', '🙏', '💯', '❤️', '✨', '🎉', '🚀', '🙌', '🤝', '👀', '💡', '🌈', '🍕'];
+const stickers = [
+    { name: 'Happy Cat', url: 'https://cdn-icons-png.flaticon.com/512/3241/3241285.png' },
+    { name: 'Cool Dog', url: 'https://cdn-icons-png.flaticon.com/512/616/616408.png' },
+    { name: 'Coffee', url: 'https://cdn-icons-png.flaticon.com/512/590/590610.png' },
+    { name: 'Coding', url: 'https://cdn-icons-png.flaticon.com/512/606/606246.png' },
+    { name: 'Gift', url: 'https://cdn-icons-png.flaticon.com/512/1041/1041460.png' }
+];
+
+function toggleEmojiPicker() {
+    const picker = document.getElementById('emoji-picker');
+    picker.classList.toggle('hidden');
+    if (!picker.classList.contains('hidden')) {
+        showPickerTab('emojis');
+    }
+}
+
+function showPickerTab(tab) {
+    const content = document.getElementById('picker-content');
+    const tabEmojis = document.getElementById('tab-emojis');
+    const tabStickers = document.getElementById('tab-stickers');
+
+    content.innerHTML = '';
+    tabEmojis.className = 'flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-all ' + (tab === 'emojis' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-slate-400 hover:text-white');
+    tabStickers.className = 'flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-all ' + (tab === 'stickers' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-slate-400 hover:text-white');
+
+    if (tab === 'emojis') {
+        const grid = document.createElement('div');
+        grid.className = 'grid grid-cols-5 gap-2';
+        commonEmojis.forEach(emoji => {
+            const btn = document.createElement('button');
+            btn.className = 'text-2xl p-2 hover:bg-slate-700/50 rounded-xl transition-all active:scale-90';
+            btn.innerText = emoji;
+            btn.onclick = () => addEmoji(emoji);
+            grid.appendChild(btn);
+        });
+        content.appendChild(grid);
+    } else {
+        const grid = document.createElement('div');
+        grid.className = 'grid grid-cols-2 gap-3';
+        stickers.forEach(sticker => {
+            const btn = document.createElement('button');
+            btn.className = 'p-2 hover:bg-slate-700/50 rounded-xl transition-all group';
+            btn.innerHTML = `<img src="${sticker.url}" class="w-full h-auto rounded-lg group-hover:scale-105 transition-transform" alt="${sticker.name}">`;
+            btn.onclick = () => sendSticker(sticker.url);
+            grid.appendChild(btn);
+        });
+        content.appendChild(grid);
+    }
+}
+
+function addEmoji(emoji) {
+    const input = document.getElementById('message-input');
+    input.value += emoji;
+    input.focus();
+}
+
+async function sendSticker(url) {
+    if (!state.activeChat) return;
+    document.getElementById('emoji-picker').classList.add('hidden');
+
+    // Stickers are essentially messages with an image attachment (no text)
+    // We can fetch the sticker as a blob or just send the URL if the backend supports it.
+    // Since our backend expects a file, we'll fetch the image and send it as a file.
+    try {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const file = new File([blob], 'sticker.png', { type: 'image/png' });
+        sendMessage(file);
+    } catch (e) {
+        showToast('Failed to send sticker');
+    }
+}
+
 // Theme Management
 function toggleTheme() {
     const body = document.body;
@@ -543,8 +618,14 @@ if (attachBtn) {
 
 document.addEventListener('click', (e) => {
     const menu = document.getElementById('attach-menu');
+    const emojiPicker = document.getElementById('emoji-picker');
+
     if (menu && !menu.classList.contains('hidden') && !e.target.closest('#attach-btn')) {
         menu.classList.add('hidden');
+    }
+
+    if (emojiPicker && !emojiPicker.classList.contains('hidden') && !e.target.closest('#emoji-picker') && !e.target.closest('button[onclick="toggleEmojiPicker()"]')) {
+        emojiPicker.classList.add('hidden');
     }
 });
 
