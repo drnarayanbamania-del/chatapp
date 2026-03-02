@@ -529,6 +529,22 @@ function showToast(message, type = 'error') {
 }
 
 // User & Chat List Functions
+async function fetchLockedChats() {
+    try {
+        const res = await fetch('/api/users/locked-chats', {
+            headers: { 'Authorization': `Bearer ${state.token}` }
+        });
+        if (res.ok) {
+            state.lockedChats = await res.json();
+        } else {
+            state.lockedChats = [];
+        }
+    } catch (e) {
+        state.lockedChats = [];
+        console.error('Error fetching locked chats', e);
+    }
+}
+
 async function fetchChatList() {
     try {
         const res = await fetch('/api/messages/chat-list', {
